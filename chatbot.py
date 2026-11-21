@@ -95,7 +95,9 @@ def error_message(exc:Exception)->str:
     if isinstance(exc,RateLimitError):return "Groq rate limit reached. Wait a moment or use your own key."
     if isinstance(exc,APIConnectionError):return "Groq could not be reached. Check your internet connection."
     if isinstance(exc,BadRequestError):return "The request was not accepted. Check the model ID and settings."
-    if isinstance(exc,APIStatusError):return f"Groq returned an API error ({exc.status_code}). Try again shortly."
+    if isinstance(exc,APIStatusError):
+        if exc.status_code==404:return "That model is no longer available on Groq. Click Test connection to refresh the live model list, then choose an available model."
+        return f"Groq returned an API error ({exc.status_code}). Try again shortly."
     return f"Something went wrong: {redact_secrets(exc)}"
 
 def render_sidebar()->None:
@@ -155,7 +157,16 @@ def handle_prompt(prompt:str)->None:
         if s["streaming"]:st.write_stream(iter([text]))
         else:st.markdown(text)
         messages.append({"role":"assistant","content":text,"meta":meta,"timestamp":datetime.now(timezone.utc).isoformat()});st.session_state.shared_messages+=source=="shared";st.rerun()
-    except Exception as exc:messages.pop();st.error(error_message(exc))
+    except Exception as exc:
+        messages.pop()
+        if isinstance(exc,APIStatusError) and exc.status_code==404:
+            refreshed=fetch_models(key)
+            if refreshed != FALLBACK_MODELS:
+                st.session_state.models=refreshed
+                st.session_state.current_model=refreshed[0]
+                st.info(f"The selected model is unavailable. Live models were refreshed; NOVA selected `{refreshed[0]}`. Send your message again.")
+        else:
+            st.error(error_message(exc))
 
 def main()->None:
     """Run NOVA."""
