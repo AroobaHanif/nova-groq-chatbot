@@ -135,7 +135,8 @@ def render_chat()->None:
         for i,prompt in enumerate(STARTERS):
             if cols[i%2].button(prompt,use_container_width=True,key=f"starter-{i}"):st.session_state.pending_prompt=prompt;st.rerun()
     for item in messages:
-        with st.chat_message(item["role"],avatar="✦" if item["role"]=="assistant" else "◎"):
+        # Leave avatar unset: Streamlit's built-in role avatar is stable across versions.
+        with st.chat_message(item["role"]):
             st.markdown(item["content"])
             if item["role"]=="assistant" and item.get("meta"):
                 m=item["meta"];st.caption(f"{m['model']} · {m['elapsed']}s · {m['tokens']} tokens · {m['tps']} tok/s")
