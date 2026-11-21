@@ -79,6 +79,11 @@ def ask_groq(key:str,model:str,messages:list[dict[str,str]],settings:dict[str,An
     except BadRequestError as exc:
         if "max_completion_tokens" not in str(exc).lower() and "unsupported" not in str(exc).lower():raise
         args.pop("max_completion_tokens",None); response=client.chat.completions.create(**args); st.caption("A model-specific setting was skipped and the request was retried.")
+    except APIStatusError as exc:
+        if exc.status_code!=500:raise
+        minimal={"model":model,"messages":messages,"stream":stream}
+        response=client.chat.completions.create(**minimal)
+        st.caption("Groq returned a temporary model error; NOVA retried with basic chat settings.")
     if stream:
         text=""; usage=None
         for chunk in response:
@@ -112,7 +117,8 @@ def render_sidebar()->None:
         cls="status-pill ok" if st.session_state.connected else "status-pill"; st.markdown(f"<span class='{cls}'>● {'Connected' if st.session_state.connected else 'Not connected'}</span>",unsafe_allow_html=True)
         if st.session_state.connection_error:st.caption(st.session_state.connection_error)
         st.markdown("<div class='section-title'>MODEL</div>",unsafe_allow_html=True)
-        selected=st.selectbox("Model",st.session_state.models,label_visibility="collapsed"); custom=st.text_input("Custom model ID",placeholder="Optional override"); st.session_state.current_model=custom.strip() or selected
+        preferred=next((name for name in FALLBACK_MODELS if name in st.session_state.models),st.session_state.models[0]); model_index=st.session_state.models.index(preferred)
+        selected=st.selectbox("Model",st.session_state.models,index=model_index,label_visibility="collapsed"); custom=st.text_input("Custom model ID",placeholder="Optional override"); st.session_state.current_model=custom.strip() or selected
         st.markdown("<div class='section-title'>PERSONA</div>",unsafe_allow_html=True)
         persona=st.selectbox("Persona",list(PERSONAS),key="persona")
         if persona!=st.session_state.get("persona_previous"):st.session_state.system_prompt=PERSONAS[persona];st.session_state.persona_previous=persona
